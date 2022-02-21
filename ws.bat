@@ -13,7 +13,7 @@ cls
 rem echo %0ssss
 
 
-rem 如果要增加新的服务，只需要增加服务名称，按分号分隔（仅修改这一处地方就可以）
+rem 如果要增加其他的服务，只需要增加服务名称，按分号分隔（仅修改这一处地方就可以）
 set WS=MariaDB10.4;MariaDB10.5;MSSQLSERVER;aspnet_state;ZyrhDeviceService
 
 
