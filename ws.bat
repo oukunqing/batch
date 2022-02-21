@@ -10,10 +10,9 @@ setlocal enabledelayedexpansion
 :flag_loop
 
 cls
-rem echo %0ssss
+rem echo %0
 
-
-rem 如果要增加其他的服务，只需要增加服务名称，按分号分隔（仅修改这一处地方就可以）
+rem 如果要增加其他的服务，只需要增加服务名称(服务名称可以包含空格)，按分号分隔（仅修改这一处地方就可以）
 set WS=MariaDB10.4;MariaDB10.5;MSSQLSERVER;aspnet_state;ZyrhDeviceService
 
 
@@ -27,8 +26,9 @@ rem 分割字符串WS，按分号;分隔
 rem tokens=1*，tokens表示分段的方式，tokens=1*表示第一个分隔符;之前的作为一部分,剩下的(*表示)作为一部分。这两部分在循环体总可以用%%a表示第一部分，%%b表示第二部分
 rem delims=;表示以分号作为分隔符
 for /f "tokens=1* delims=;" %%a in ("%WS%") do (
+	rem echo n:%%a
 	rem 将分割出来的字符串赋值给数组元素
-	set WS[%WS_COUNT%]=%%a
+	set WS[%WS_COUNT%]="%%a"
 	set /a WS_COUNT+=1
 	rem 将截取剩下的部分赋给变量WS
 	set WS=%%b
@@ -41,7 +41,7 @@ set /a WS_COUNT-=1
 echo.
 echo   [:Loop]  Please select service id:
 for /l %%n in (%WS_START%, 1, %WS_COUNT%) do ( 
-   rem echo !WS[%%n]! 
+   rem echo wn:!WS[%%n]! 
    rem 启用了变量延迟，变量需要用!!括起来
    call :flag_state !WS[%%n]! %%n
 )
@@ -83,7 +83,7 @@ goto comments
 :flag_action
 	echo.
 	rem 这里的□ (<0x08>)是一个退格符，是为了显示出后面的两个空格位置
-	set /p "action=  Please input action key (S - Start, X - Stop, C - Config, R - :Type, Q - Exit) : "
+	set /p "action=  Please input action key (S - Start, X - Stop, C - :Config, N - :Name, D - :Desc, R - :Type, Q - Exit) : "
 
 	set return=%action%
 	call :upper_case %action% return
@@ -92,11 +92,15 @@ goto comments
 	call :check_exit %action%
 
 	if "%action%" == "S" (
-		call :flag_start %~1 %~2
+		call :flag_start "%~1" %~2
 	) else if "%action%" == "X" (
-		call :flag_stop %~1 %~2
+		call :flag_stop "%~1" %~2
 	) else if "%action%" == "C" (
-		call :flag_config %~1
+		call :flag_config "%~1"
+	) else if "%action%" == "N" (
+		call :flag_name "%~1"
+	) else if "%action%" == "D" (
+		call :flag_desc "%~1"
 	) else if "%action%" == "R" (
 		goto flag_type
 	) else (
@@ -112,9 +116,9 @@ goto comments
 :comments
 :flag_state
 	set st=
-	call :flag_qc %~1 %~2 st
+	call :flag_qc "%~1" %~2 st
 
-	set fn=%~1_tmp_123.log
+	set fn="%~1_tmp_123.log"
 	rem 查询服务状态信息，提取 STATE 内容并写入到文件中
 	sc query "%~1" |findstr "STATE" > %fn%
 
@@ -134,7 +138,7 @@ goto comments
 goto:eof
 
 :flag_qc
-	set fn=%~1_qc_123.log
+	set fn="%~1_qc_123.log"
 	rem 查询服务配置信息，提取 START_TYPE 内容并写入到文件中
 	sc qc "%~1" |findstr "START_TYPE" > %fn%
 
@@ -162,17 +166,17 @@ goto:eof
 
 :flag_start
 	echo   start %~1
-	sc start %~1
+	sc start "%~1"
 	timeout 2
-	call :flag_state %~1 %~2
+	call :flag_state "%~1" %~2
 	goto flag_type
 goto:eof
 
 :flag_stop
 	echo   stop %~1
-	sc stop %~1
+	sc stop "%~1"
 	timeout 2
-	call :flag_state %~1 %~2
+	call :flag_state "%~1" %~2
 	goto flag_type
 goto:eof
 
@@ -185,17 +189,45 @@ goto:eof
 	rem 设置服务启动方式 auto - Automatic, demand - Manual, disabled - Disabled, delayed-auto - Automatic (Delayed Start)
 	if "%config%" == "1" (
 		rem start= 这里需要一个空格
-		sc config %~1 start= auto
+		sc config "%~1" start= auto
 	) else if "%config%" == "2" (
-		sc config %~1 start= demand
+		sc config "%~1" start= demand
 	) else if "%config%" == "3" (
-		sc config %~1 start= disabled
+		sc config "%~1" start= disabled
 	) else if "%config%" == "4" (
-		sc config %~1 start= delayed-auto
+		sc config "%~1" start= delayed-auto
 	) else if "%config%" == "R" (
 		goto flag_type
 	) else (
 		goto flag_config
+	)
+goto:eof
+
+:flag_name
+	echo.
+	set /p "name=  Please input service name (R - :Type, Q - Exit) : "
+
+	call :check_exit %name%
+
+	if "%name%" == "R" (
+		goto flag_type
+	) else (
+		sc config "%~1" DisplayName= "%name%"
+		goto flag_type
+	)
+goto:eof
+
+:flag_desc
+	echo.
+	set /p "desc=  Please input service description (R - :Type, Q - Exit) : "
+
+	call :check_exit %desc%
+
+	if "%desc%" == "R" (
+		goto flag_type
+	) else (
+		sc description "%~1" "%desc%"
+		goto flag_type
 	)
 goto:eof
 
