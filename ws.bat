@@ -13,7 +13,7 @@ cls
 rem echo %0
 
 rem 如果要增加其他的服务，只需要增加服务名称(服务名称可以包含空格)，按分号分隔（仅修改这一处地方就可以）
-set WS=MariaDB10.4;MariaDB10.5;MSSQLSERVER;aspnet_state;ZyrhDeviceService
+set WS=MariaDB10.4;MariaDB10.5;MSSQLSERVER;aspnet_state;ZyrhDeviceService;
 
 
 rem 数组下标开始，这里特意设计为从1开始
@@ -48,11 +48,23 @@ for /l %%n in (%WS_START%, 1, %WS_COUNT%) do (
 
 :flag_type
 echo.
-set /p "type=  [:Type]  Please input service id (%WS_START% - %WS_COUNT%) (R - :Loop, Q - Exit) : "
+set /p "input=  [:Type]  Please input service id (%WS_START% - %WS_COUNT%) (R - :Loop, Q - Exit) : "
 
-set return=%type%
-call :upper_case %type% return
-set type=%return%
+::获取输入字符串的长度
+call :get_len %input% len
+
+set type=%input%
+set action_str=
+
+rem 如果输入2个（或2个以上）字符，如S1或X2等，则拆分前2个字符,第1个字符作为action动作：S-启用，X-停止，后面的字符作为类型数字
+rem 按照之前的设计规则，应该是1S而不是S1，这样做的目的是为了兼容类型超出10个以上，10S处理起来比S10要麻烦很多
+if %len% geq 2 (
+	set action_str=%input:~0,1%
+	set type=%input:~1%
+	call :upper_case !action_str! action_str
+)
+call :upper_case %type% type
+set input=%type%
 set /a num=%type%*1
 
 call :check_exit %type%
@@ -66,14 +78,25 @@ if %type%==%num% (
 		goto flag_type
 	) else (
 		call :flag_state !WS[%type%]! %type%
-		call :flag_action !WS[%type%]! %type%
+		if "%action_str%" == "S" (
+			call :flag_start "!WS[%type%]!" %type%
+		) else if "%action_str%" == "X" (
+			call :flag_stop "!WS[%type%]!" %type%
+		) else if "%action_str%" == "C" (
+			call :flag_config "!WS[%type%]!"
+		) else if "%action_str%" == "N" (
+			call :flag_name "!WS[%type%]!"
+		) else if "%action_str%" == "D" (
+			call :flag_desc "!WS[%type%]!"
+		) else (
+			call :flag_action !WS[%type%]! %type%
+		)
 	)
 ) else if "%type%" == "R" (
 	goto flag_loop
 ) else (
 	goto flag_type
 )
-
 
 goto comments
 	函数
@@ -251,6 +274,17 @@ goto:eof
 	set val=%~1
 	for %%i in (a b c d e f g h i j k l m n o p q r s t u v w x y z) do call set val=%%val:%%i=%%i%%
 	set %~2=%val%
+goto:eof
+
+:get_len
+	set str=%~1
+	set len=0
+	:label
+	set /a len+=1
+	set str=%str:~0,-1%
+	if defined str goto :label
+	::echo len:%len%
+	set %~2=%len%
 goto:eof
 
 :flag_exit
